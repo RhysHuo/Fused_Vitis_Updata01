@@ -240,7 +240,6 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 
 			LOOP_CH1:    
 				for (int i = 0; i < N; i+=4) {
-				//for (int i = 0; i < N; i+=1) {
 					
 					ap_int<32> bias_val[4];
 					ap_int<32> shift_val[4];
@@ -262,25 +261,14 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 					//LOOP_CW1: for (int j = 0; j < B_WIDTH_INT; j++) {
 					LOOP_CW1: 
 						for (int j = 0; j < B_WIDTH_BLOCK; j++) {
-							#pragma HLS PIPELINE II=4
-							/*
-							if (j<B_WIDTH_INT)
-							{
-								ap_int<64> C_temp1 =  C_fifo[j].read();
-								write_fifo[j] << C_temp1;
-								//printf("check point 03");
-							}
-							*/
-							
+							#pragma HLS PIPELINE II=4	
 							//#pragma HLS UNROLL factor=2
 							DTYPE C_out;
 							LOOP_CH3:    
 								for (int z = 0; z < 4; z++) {
-									printf("check point 01");
 									//#pragma HLS PIPELINE
 									#pragma HLS loop_tripcount min=1 max=1 avg=1
 									if (j<B_WIDTH_INT)
-									//if ((j+z) < B_WIDTH_INT)
 									{
 										#ifdef ENABLE_SCALING
 										ap_int<64> C_temp1 =  C_fifo[j].read() + bias_val[z];
@@ -290,17 +278,14 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 										C_temp1 = (C_temp1 >> total_shift1) + zero_point_dst;
 										#else
 										ap_int<64> C_temp1 =  C_fifo[j].read()+ bias_val[z];
-										//ap_int<64> C_temp1 =  C_fifo[j].read()+ bias_val[z];
 										#endif
 										ap_int<8> C_temp5 = C_temp1;
 										if (C_temp1 < clamp_min) C_temp5 = clamp_min;
 										if (C_temp1 > clamp_max) C_temp5 = clamp_max; 
-										printf("check point 02");
 										
 										C_out = ((C_out >> 8) | ((int)C_temp5 << 24));
 										
 										write_fifo[j] << C_temp1;
-										printf("check point 03");
 										/*
 										if (z==3)
 										{
