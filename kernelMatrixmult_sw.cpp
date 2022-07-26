@@ -278,7 +278,8 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 								for (int z = 0; z < 4; z++) {
 									//#pragma HLS PIPELINE
 									#pragma HLS loop_tripcount min=1 max=1 avg=1
-									if (j<B_WIDTH_INT)
+									//if (j<B_WIDTH_INT)
+									if ((j+z) < B_WIDTH_INT)
 									{
 										#ifdef ENABLE_SCALING
 										ap_int<64> C_temp1 =  C_fifo[j].read() + bias_val[z];
@@ -287,7 +288,8 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 										C_temp1 = C_temp1*mult_val[z] + round1;
 										C_temp1 = (C_temp1 >> total_shift1) + zero_point_dst;
 										#else
-										ap_int<64> C_temp1 =  C_fifo[j].read()+ bias_val[z];
+										ap_int<64> C_temp1 =  C_fifo[j+z].read()+ bias_val[z];
+										//ap_int<64> C_temp1 =  C_fifo[j].read()+ bias_val[z];
 										#endif
 										ap_int<8> C_temp5 = C_temp1;
 										if (C_temp1 < clamp_min) C_temp5 = clamp_min;
@@ -295,7 +297,7 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 										
 										C_out = ((C_out >> 8) | ((int)C_temp5 << 24));
 										
-										write_fifo[j++] << C_temp1;
+										write_fifo[j+z] << C_temp1;
 										
 										/*
 										if (z==3)
