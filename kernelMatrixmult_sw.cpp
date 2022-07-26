@@ -34,7 +34,7 @@ const int BLOCK=B_WIDTH_BLOCK;   //BLOCK should be less than B_WIDTH_BLOCK
 const int PARALLEL_ROW = B_BLOCK_PARALLEL;
 const int A_WIDTH_FIFO =  A_WIDTH;
 
-void dsp_kernel_sw(ap_uint<2> mode, DTYPE a_value,DTYPE b_block[B_HEIGHT][B_WIDTH_BLOCK],ap_int<32> b_row,ap_int<8> zero_point_lhs,ap_int<8> zero_point_rhs,DTYPE_OUT acc[B_WIDTH_BLOCK])
+void dsp_kernel_sw(DTYPE a_value,DTYPE b_block[B_HEIGHT][B_WIDTH_BLOCK],ap_int<32> b_row,ap_int<8> zero_point_lhs,ap_int<8> zero_point_rhs,DTYPE_OUT acc[B_WIDTH_BLOCK])
 {
 	//#pragma HLS ALLOCATION instances=mul limit=64 operation
 	//#pragma HLS INLINE
@@ -53,14 +53,15 @@ void dsp_kernel_sw(ap_uint<2> mode, DTYPE a_value,DTYPE b_block[B_HEIGHT][B_WIDT
 	    #pragma HLS PIPELINE
 		for(int z = 0; z < DTYPE_LENGTH; z+=8) {
  	  		ap_int<8> A_val = a_value.range(z+7,z);
-	  		//ap_int<8> B_val = b_block[b_row][j].range(z+7,z);
-			ap_int<8> B_val_spmm = b_block[b_row][j].range(z+7,z);
-			DTYPE B_val_gemm = b_block[b_row][j];
+	  		ap_int<8> B_val = b_block[b_row][j].range(z+7,z);
+			//ap_int<8> B_val_spmm = b_block[b_row][j].range(z+7,z);
+			//DTYPE B_val_gemm = b_block[b_row][j];
 			//acc[j] += (A_val-zero_point_lhs)*(B_val-zero_point_rhs);
-			if(mode)
-				acc[j] += A_val*(B_val_spmm-zero_point_rhs);
-			else
-				acc[j] += A_val*(B_val_gemm-zero_point_rhs);
+			//if(mode)
+			//	acc[j] += A_val*(B_val_spmm-zero_point_rhs);
+			//else
+			//	acc[j] += A_val*(B_val_gemm-zero_point_rhs);
+			acc[j] += A_val*(B_val-zero_point_rhs);
 		}
 	} // j loop
 }
@@ -71,7 +72,7 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 
        //#pragma HLS allocation function instances=dsp_kernel limit=1
 	DTYPE B_accel[B_HEIGHT][B_WIDTH_BLOCK];
-    #pragma HLS array_partition variable=B_accel block factor= BLOCK/2 dim=2
+    	#pragma HLS array_partition variable=B_accel block factor= BLOCK/2 dim=2
 
         //hls::stream<DTYPE>       A_accel;
         //#pragma HLS STREAM variable=A_accel depth=A_WIDTH_FIFO dim=1
@@ -93,7 +94,7 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 	
 	int col_indices[A_WIDTH];
 
-    #pragma HLS DATAFLOW	
+    	#pragma HLS DATAFLOW	
 
 	int B_WIDTH_INT,rnnz;
 
@@ -110,14 +111,11 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 				#pragma HLS PIPELINE
 				#pragma HLS loop_tripcount min=16 max=16 avg=16
 				B_accel[i][j] = B[i+j*M+B_index*B_WIDTH_BLOCK*M];
-				//printf("B_accel[%d][%d] = %d \n", i, j, B_accel[i][j]);
 			}
 	}
     
 	for (int A_index = 0; A_index < N; A_index++) {
 		#pragma HLS loop_tripcount min=6 max=6 avg=6
-
-		//std::cout << "A_index is " << A_index << " out of " << N/A_HEIGHT_BLOCK << std::endl;
 
 		//load A row
 
@@ -125,14 +123,11 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 		{
 
 			#ifdef ENABLE_GEMM
-			//printf("gemm : loading A row \n");
 			LOOP_A_ROW_GEMM : 
 				for (int j = 0; j < M; j++) {
 					#pragma HLS PIPELINE
 					//A_accel <<  A[A_index*M*A_HEIGHT_BLOCK+j];
 					A_accel[j] =  A[A_index*M*A_HEIGHT_BLOCK+j];
-					//if((A_index*M*A_HEIGHT_BLOCK+j) < 128)
-						//printf("A[%d] = %d \n", A_index*M*A_HEIGHT_BLOCK+j, A[A_index*M*A_HEIGHT_BLOCK+j]);
 				}
 			#endif
 
@@ -145,7 +140,6 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 			int current_index= local_rowPtr[A_index];
 			int next_index=local_rowPtr[A_index+1];
 			rnnz = next_index-current_index;
-			//printf("A_index = %d,  rnnz = %d  ", A_index, rnnz);
 			//LOOP_A_ROW_SPMM : for (int j = current_index; j < next_index; j++) {
 			LOOP_A_ROW_SPMM : 
 				for (int j = 0; j < rnnz; j++) {
@@ -154,8 +148,6 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 					//col_indices_fifo << columnIndex[j];
 					A_accel[j] =  values[current_index+j];
 					//col_indices[j] = columnIndex[current_index+j];
-					//if((current_index+j) < 128)
-						//printf("%d,  A_accel[%d] = %d \n", current_index+j, j, A_accel[j]);
 					//A_accel[z] =  current_index+j;
 					//col_indices[z] = current_index+j;
 				}
@@ -183,8 +175,8 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 	   		DSP_LOOP_GEMM: 
 				for(int k = 0; k < M; k+=1) {
 					#pragma HLS loop_tripcount min=84 max=84 avg=84
-	        		#pragma HLS PIPELINE
-	        		#pragma HLS UNROLL factor=PARALLEL_ROW
+					#pragma HLS PIPELINE
+					#pragma HLS UNROLL factor=PARALLEL_ROW
 
 					//how many rows of B block are computed in parallel in multiplication loop
 					//for example a couple of B block rows are multiplied for A 1 row in each loop iteration
@@ -192,7 +184,7 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 
 					//DTYPE v = A_accel.read();
 					DTYPE v = A_accel[k];
-					dsp_kernel_sw(mode, v,B_accel,k,zero_point_lhs,zero_point_rhs,acc);
+					dsp_kernel_sw(v,B_accel,k,zero_point_lhs,zero_point_rhs,acc);
 
 					for (int j = 0; j < B_WIDTH_BLOCK; j++) {
 						#pragma HLS UNROLL
@@ -202,22 +194,18 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 				} // k loop
      			for (int j = 0; j < B_WIDTH_BLOCK; j++) {
 				//#pragma HLS loop_tripcount min=16 max=16 avg=16
-	                #pragma HLS UNROLL
-					if (j < B_WIDTH_INT)
-					{
-						C_fifo[j] << acc2[j];
-						//C_fifo[j] << acc[j];
-						//if(A_index < 2)
-						//printf("acc[%d] = %d \n", j, acc[j]);
-					}
+	                	#pragma HLS UNROLL
+				if (j < B_WIDTH_INT)
+				{
+					C_fifo[j] << acc2[j];
 				}
+			}
 
 			#endif
 		} //mode spmm
 		else
 		{
 			#ifdef ENABLE_SPMM
-			//printf("spmm : computing \n");
 			
 			DSP_LOOP_SPMM: 
 				for (int i = 0; i < rnnz; i+=1) {
@@ -228,8 +216,7 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 					DTYPE v = A_accel[i];
 					int   ci = col_indices[i];
 
-					dsp_kernel_sw(mode, v,B_accel,ci,zero_point_lhs,zero_point_rhs,acc);
-					//printf("check point 01");
+					dsp_kernel_sw(v,B_accel,ci,zero_point_lhs,zero_point_rhs,acc);
 
 					for (int j = 0; j < B_WIDTH_BLOCK; j++) {
 						#pragma HLS UNROLL			
@@ -242,8 +229,6 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 					if (j < B_WIDTH_INT)
 					{
 						C_fifo[j] << acc2[j];
-						//printf("check point 02");
-						//C_fifo[j] << acc[j];
 					}
 				}
 
@@ -263,9 +248,8 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 				B_WIDTH_INT = tail;
 
 			LOOP_CH1:    
-				//for (int i = 0; i < N; i+=4) {
-				for (int i = 0; i < N; i+=1) {
-					/*
+				for (int i = 0; i < N; i+=4) {
+				//for (int i = 0; i < N; i+=1) {
 					ap_int<32> bias_val[4];
 					ap_int<32> shift_val[4];
 					ap_int<32> mult_val[4];
@@ -281,21 +265,19 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 					mult_val[1] = quantized_multiplier[i+1];
 					mult_val[2] = quantized_multiplier[i+2];
 					mult_val[3] = quantized_multiplier[i+3];
-					*/
+					
 					//LOOP_CW1: for (int j = 0; j < B_WIDTH_INT; j++) {
 					LOOP_CW1: 
 						for (int j = 0; j < B_WIDTH_BLOCK; j++) {
 							#pragma HLS PIPELINE II=4
-							
+							/*
 							if (j<B_WIDTH_INT)
 							{
 								ap_int<64> C_temp1 =  C_fifo[j].read();
 								write_fifo[j] << C_temp1;
 								//printf("check point 03");
 							}
-							
-							
-							/*
+							*/
 							//#pragma HLS UNROLL factor=2
 							DTYPE C_out;
 							LOOP_CH3:    
@@ -305,46 +287,32 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 									if (j<B_WIDTH_INT)
 									{
 										#ifdef ENABLE_SCALING
-										printf("ENABLE_SCALING \n");
 										ap_int<64> C_temp1 =  C_fifo[j].read() + bias_val[z];
-										printf("%d C_temp1 = %d \n", counter, C_temp1);
 										ap_int<32> total_shift1 = 31 - shift_val[z];
-												ap_int<64> round1 = (ap_int<64>)1 << (total_shift1 - 1);
+										ap_int<64> round1 = (ap_int<64>)1 << (total_shift1 - 1);
 										C_temp1 = C_temp1*mult_val[z] + round1;
-										printf("%d C_temp1*mult_val[z] = %d \n", counter, C_temp1);
 										C_temp1 = (C_temp1 >> total_shift1) + zero_point_dst;
 										#else
-										//printf("NOT ENABLE_SCALING \n");
 										ap_int<64> C_temp1 =  C_fifo[j].read()+ bias_val[z];
-										if((counter > 0) && (counter < 128))
-											printf("counter = %d, z = %d, C_temp1 = %d \n", counter, z, C_temp1);
-										counter += 1;
 										#endif
-										//ap_int<8> C_temp5 = C_temp1;
-										//if (C_temp1 < clamp_min) C_temp5 = clamp_min;
-										//if (C_temp1 > clamp_max) C_temp5 = clamp_max; 
-										//if(counter < 64)
-											//printf("%d (C_out >> 8) = %d \n", counter, C_out >> 8);
-				
-										//C_out = ((C_out >> 8) | ((int)C_temp5 << 24));
-										//if(counter < 64){
-											
-											//printf("%d ((int)C_temp5 << 24) = %d \n", counter, (int)C_temp5 << 24);
-											//printf("%d C_out = %d \n", counter++, C_out);
-										//}
-
-										if (z==0)
+										ap_int<8> C_temp5 = C_temp1;
+										if (C_temp1 < clamp_min) C_temp5 = clamp_min;
+										if (C_temp1 > clamp_max) C_temp5 = clamp_max; 
+										
+										C_out = ((C_out >> 8) | ((int)C_temp5 << 24));
+										
+										write_fifo[j] << C_temp1;
+										
+										/*
+										if (z==3)
 										{
-											//write_fifo[j] << C_out;
-											write_fifo[j] << C_temp1;
-											printf("write_fifo[%d] = %d \n", j, C_temp1);
+											write_fifo[j] << C_out;
 										}
+										*/
 									}
-								}
-								*/
-								
+								}	
 						}
-					}     
+				}     
 }
 
 void writec_sw(int N,int P, hls::stream<DTYPE_OUT> write_fifo[C_WIDTH_BLOCK], DTYPE* C,int array_c_adjust,int B_index, int B_index_loop,int tail)
@@ -367,9 +335,6 @@ void writec_sw(int N,int P, hls::stream<DTYPE_OUT> write_fifo[C_WIDTH_BLOCK], DT
 					#ifdef ENABLE_TRANSPOSE
 						//C[i+(j+B_index*B_WIDTH_BLOCK)*(array_c_adjust>>2)] = C_out;
 						C[i+(j+B_index*B_WIDTH_BLOCK)*array_c_adjust] = C_out;
-					//printf("check point 04");
-						//C[i*P+j+B_index*B_WIDTH_BLOCK] = C_out;
-						//printf("Wrote address %x\n", (int)(i+(j+B_index*B_WIDTH_BLOCK)*(array_c_adjust>>2))); 
 					#else
 						C[i*P+j+B_index*B_WIDTH_BLOCK] = C_out;
 					#endif
