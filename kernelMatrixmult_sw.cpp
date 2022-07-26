@@ -136,7 +136,6 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 		{
 
 			#ifdef ENABLE_SPMM
-			//printf("spmm : loading A row \n");
 			int current_index= local_rowPtr[A_index];
 			int next_index=local_rowPtr[A_index+1];
 			rnnz = next_index-current_index;
@@ -164,13 +163,11 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 		for (int j = 0; j < B_WIDTH_BLOCK; j++) {
 			#pragma HLS UNROLL
 			acc2[j] = 0;
-			//acc[j] = 0;
 		}
 
 		if (mode == 0) //gemm
 		{
 			#ifdef ENABLE_GEMM
-			//printf("gemm : computing \n");
 
 	   		DSP_LOOP_GEMM: 
 				for(int k = 0; k < M; k+=1) {
@@ -248,8 +245,9 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 				B_WIDTH_INT = tail;
 
 			LOOP_CH1:    
-				for (int i = 0; i < N; i+=4) {
-				//for (int i = 0; i < N; i+=1) {
+				//for (int i = 0; i < N; i+=4) {
+				for (int i = 0; i < N; i+=1) {
+					/*
 					ap_int<32> bias_val[4];
 					ap_int<32> shift_val[4];
 					ap_int<32> mult_val[4];
@@ -265,19 +263,20 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 					mult_val[1] = quantized_multiplier[i+1];
 					mult_val[2] = quantized_multiplier[i+2];
 					mult_val[3] = quantized_multiplier[i+3];
+					*/
 					
 					//LOOP_CW1: for (int j = 0; j < B_WIDTH_INT; j++) {
 					LOOP_CW1: 
 						for (int j = 0; j < B_WIDTH_BLOCK; j++) {
 							#pragma HLS PIPELINE II=4
-							/*
+							
 							if (j<B_WIDTH_INT)
 							{
 								ap_int<64> C_temp1 =  C_fifo[j].read();
 								write_fifo[j] << C_temp1;
 								//printf("check point 03");
 							}
-							*/
+							/*
 							//#pragma HLS UNROLL factor=2
 							DTYPE C_out;
 							LOOP_CH3:    
@@ -294,6 +293,7 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 										C_temp1 = (C_temp1 >> total_shift1) + zero_point_dst;
 										#else
 										ap_int<64> C_temp1 =  C_fifo[j].read()+ bias_val[z];
+										//ap_int<64> C_temp1 =  C_fifo[j].read()+ bias_val[z];
 										#endif
 										ap_int<8> C_temp5 = C_temp1;
 										if (C_temp1 < clamp_min) C_temp5 = clamp_min;
@@ -303,14 +303,15 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 										
 										write_fifo[j] << C_temp1;
 										
-										/*
+										
 										if (z==3)
 										{
 											write_fifo[j] << C_out;
 										}
-										*/
+										
 									}
-								}	
+								}
+								*/
 						}
 				}     
 }
