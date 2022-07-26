@@ -91,6 +91,17 @@ void mmult_golden_byte(DTYPE *A, DTYPE *B, DTYPE *C)
 }
 
 //spmm
+void init_arrays_spmm(DTYPE *x, int row, int col)
+{
+    for (int i = 0; i < row; i++) {
+        //for (int j = 0; j < (col>>2); j++) {
+	for (int j = 0; j < col; j++) {
+            //x[i*(col>>2)+j] = 0x01010101;
+		x[i*col+j] = 0x01010101;
+        }
+    }
+}
+
 void golden_spmm_byte(DTYPE *values, int *row_ptr, int *col_indices, DTYPE *x, int no_vectors, DTYPE *y, int row_size, int col_size) {
 
 	int nvc = 0, i = 0, j = 0, rowStart = 0, rowEnd = row_size;
@@ -114,17 +125,6 @@ void golden_spmm_byte(DTYPE *values, int *row_ptr, int *col_indices, DTYPE *x, i
 			//y[nvc+i*no_vectors] = y0;
 		}
 	}
-}
-
-void init_arrays_spmm(DTYPE *x, int row, int col)
-{
-    for (int i = 0; i < row; i++) {
-        //for (int j = 0; j < (col>>2); j++) {
-	for (int j = 0; j < col; j++) {
-            //x[i*(col>>2)+j] = 0x01010101;
-		x[i*col+j] = 0x01010101;
-        }
-    }
 }
 
 //both
