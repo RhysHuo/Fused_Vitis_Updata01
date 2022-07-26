@@ -78,8 +78,10 @@ void mmult_golden_byte(DTYPE *A, DTYPE *B, DTYPE *C)
 			for (int k = 0; k < SM; k++) {
 				for(int z = 0; z < DTYPE_LENGTH; z+=8) {
 					DTYPE A_temp1 = A[row*SM+k];
+					DTYPE B_temp1 = B[k*SP+col];
 					ap_int<8> A_val = A_temp1.range(z+7,z);
-					result+=A_val*B[k*SP+col];
+					ap_int<8> B_val = B_temp1.range(z+7,z);
+					result += A_val * B_val;
 				}
 			}
 			//C[row*SP+col] = result;
