@@ -303,7 +303,7 @@ void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *b
 
 				}
 		}
-		for (int i = 0; i < N_4left; i+=1)) {
+		for (int i = 0; i < N_4left; i+=1) {
 			#pragma HLS UNROLL
 			ap_int<64> C_temp1 =  C_fifo[i].read();
 			write_fifo[i] << C_temp1;
