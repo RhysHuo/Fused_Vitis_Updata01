@@ -66,7 +66,7 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 
        //#pragma HLS allocation function instances=dsp_kernel limit=1
 	DTYPE B_accel[B_HEIGHT][B_WIDTH_BLOCK];
-    	#pragma HLS array_partition variable=B_accel block factor= BLOCK/2 dim=2
+	#pragma HLS array_partition variable=B_accel block factor= BLOCK/2 dim=2
 
         //hls::stream<DTYPE>       A_accel;
         //#pragma HLS STREAM variable=A_accel depth=A_WIDTH_FIFO dim=1
@@ -88,7 +88,7 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 	
 	int col_indices[A_WIDTH];
 
-    	#pragma HLS DATAFLOW	
+	#pragma HLS DATAFLOW	
 
 	int B_WIDTH_INT,rnnz;
 
@@ -231,73 +231,83 @@ void compute_sw(ap_uint<2> mode, ap_int<8> zero_point_lhs,  ap_int<8> zero_point
 void scale_sw(ap_int<32> *quantized_multiplier, ap_int<32> *shift, ap_int<32> *bias, ap_int<8> zero_point_dst, ap_int<8> clamp_max,ap_int<8> clamp_min,int N, int M, int P, hls::stream<DTYPE_OUT> C_fifo[C_WIDTH_BLOCK],int B_index, int B_index_loop,int tail,hls::stream<DTYPE_OUT> write_fifo[C_WIDTH_BLOCK])
 {
 
-			int counter = 0;
-			int B_WIDTH_INT;
-			if (B_index < (B_index_loop-1))
-				B_WIDTH_INT = B_WIDTH_BLOCK;
-			else
-				B_WIDTH_INT = tail;
+	int counter = 0;
+	int B_WIDTH_INT;
+	if (B_index < (B_index_loop-1))
+		B_WIDTH_INT = B_WIDTH_BLOCK;
+	else
+		B_WIDTH_INT = tail;
 
-			LOOP_CH1:    
-				for (int i = 0; i < N; i+=4) {
-					
-					ap_int<32> bias_val[4];
-					ap_int<32> shift_val[4];
-					ap_int<32> mult_val[4];
-					bias_val[0] =  bias[i];
-					bias_val[1] =  bias[i+1];
-					bias_val[2] =  bias[i+2];
-					bias_val[3] =  bias[i+3];
-					shift_val[0] = shift[i];
-					shift_val[1] = shift[i+1];
-					shift_val[2] = shift[i+2];
-					shift_val[3] = shift[i+3];
-					mult_val[0] = quantized_multiplier[i];
-					mult_val[1] = quantized_multiplier[i+1];
-					mult_val[2] = quantized_multiplier[i+2];
-					mult_val[3] = quantized_multiplier[i+3];
-					
-					
-					//LOOP_CW1: for (int j = 0; j < B_WIDTH_INT; j++) {
-					LOOP_CW1: 
-						for (int j = 0; j < B_WIDTH_BLOCK; j++) {
-							#pragma HLS PIPELINE II=4	
-							//#pragma HLS UNROLL factor=2
-							DTYPE C_out;
-							LOOP_CH3:    
-								for (int z = 0; z < 4; z++) {
-									//#pragma HLS PIPELINE
-									#pragma HLS loop_tripcount min=1 max=1 avg=1
-									if (j<B_WIDTH_INT)
-									{
-										#ifdef ENABLE_SCALING
-										ap_int<64> C_temp1 =  C_fifo[j].read() + bias_val[z];
-										ap_int<32> total_shift1 = 31 - shift_val[z];
-										ap_int<64> round1 = (ap_int<64>)1 << (total_shift1 - 1);
-										C_temp1 = C_temp1*mult_val[z] + round1;
-										C_temp1 = (C_temp1 >> total_shift1) + zero_point_dst;
-										#else
-										ap_int<64> C_temp1 =  C_fifo[j].read()+ bias_val[z];
-										#endif
-										ap_int<8> C_temp5 = C_temp1;
-										if (C_temp1 < clamp_min) C_temp5 = clamp_min;
-										if (C_temp1 > clamp_max) C_temp5 = clamp_max; 
-										
-										C_out = ((C_out >> 8) | ((int)C_temp5 << 24));
-										
-										write_fifo[j] << C_temp1;
-										/*
-										if (z==3)
-										{
-											write_fifo[j] << C_out;
-										}
-										*/
-										
-									}
+	int N_4 = N - N % 4;
+	int N_4left = N % 4;
+
+	LOOP_CH1:    
+		for (int i = 0; i < N_4; i+=4) {
+
+			ap_int<32> bias_val[4];
+			ap_int<32> shift_val[4];
+			ap_int<32> mult_val[4];
+			bias_val[0] =  bias[i];
+			bias_val[1] =  bias[i+1];
+			bias_val[2] =  bias[i+2];
+			bias_val[3] =  bias[i+3];
+			shift_val[0] = shift[i];
+			shift_val[1] = shift[i+1];
+			shift_val[2] = shift[i+2];
+			shift_val[3] = shift[i+3];
+			mult_val[0] = quantized_multiplier[i];
+			mult_val[1] = quantized_multiplier[i+1];
+			mult_val[2] = quantized_multiplier[i+2];
+			mult_val[3] = quantized_multiplier[i+3];
+			printf("check point 01 \n");
+
+			//LOOP_CW1: for (int j = 0; j < B_WIDTH_INT; j++) {
+			LOOP_CW1: 
+				for (int j = 0; j < B_WIDTH_BLOCK; j++) {
+					#pragma HLS PIPELINE II=4	
+					//#pragma HLS UNROLL factor=2
+					DTYPE C_out;
+					LOOP_CH3:    
+						for (int z = 0; z < 4; z++) {
+							//#pragma HLS PIPELINE
+							#pragma HLS loop_tripcount min=1 max=1 avg=1
+							if (j<B_WIDTH_INT)
+							{
+								#ifdef ENABLE_SCALING
+								ap_int<64> C_temp1 =  C_fifo[j].read() + bias_val[z];
+								ap_int<32> total_shift1 = 31 - shift_val[z];
+								ap_int<64> round1 = (ap_int<64>)1 << (total_shift1 - 1);
+								C_temp1 = C_temp1*mult_val[z] + round1;
+								C_temp1 = (C_temp1 >> total_shift1) + zero_point_dst;
+								#else
+								ap_int<64> C_temp1 =  C_fifo[j].read()+ bias_val[z];
+								printf("check point 02 \n");
+								#endif
+								ap_int<8> C_temp5 = C_temp1;
+								if (C_temp1 < clamp_min) C_temp5 = clamp_min;
+								if (C_temp1 > clamp_max) C_temp5 = clamp_max; 
+
+								C_out = ((C_out >> 8) | ((int)C_temp5 << 24));
+
+								write_fifo[j] << C_temp1;
+								printf("check point 03 \n");
+								/*
+								if (z==3)
+								{
+									write_fifo[j] << C_out;
 								}
-								
+								*/
+
+							}
 						}
-				}     
+
+				}
+		}
+		for (int i = 0; i < N_4left; i+=1)) {
+			#pragma HLS UNROLL
+			ap_int<64> C_temp1 =  C_fifo[i].read();
+			write_fifo[i] << C_temp1;
+		}
 }
 
 void writec_sw(int N,int P, hls::stream<DTYPE_OUT> write_fifo[C_WIDTH_BLOCK], DTYPE* C,int array_c_adjust,int B_index, int B_index_loop,int tail)
@@ -342,13 +352,13 @@ void mmult_wrapper_sw(ap_uint<2> mode, ap_int<32> *quantized_multiplier, ap_int<
 	#pragma HLS DATAFLOW	
 
 	compute_sw(mode, zero_point_lhs, zero_point_rhs, N, M, P, A, B, C_fifo, B_index, B_index_loop, tail, rowPtr, columnIndex, values);
-	//printf("compute_sw completed \n");
+	printf("compute_sw completed \n");
 
 	scale_sw(quantized_multiplier, shift, bias, zero_point_dst, clamp_max, clamp_min, N, M, P, C_fifo, B_index, B_index_loop, tail, write_fifo);
-	//printf("scale_sw completed \n");
+	printf("scale_sw completed \n");
 
 	writec_sw(N, P, write_fifo, C, array_c_adjust, B_index, B_index_loop, tail);
-	//printf("writec_sw completed \n");
+	printf("writec_sw completed \n");
 	
 }
 
